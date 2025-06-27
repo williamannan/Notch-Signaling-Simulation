@@ -1,2 +1,5 @@
 # Notch-Signaling-Simulation
-The code simulate Notch-Delta interaction model with filopodia dynamics 
+The code simulates the Notch-Delta interaction model with filopodia dynamics included
+
+
+
