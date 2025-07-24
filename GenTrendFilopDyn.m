@@ -1,4 +1,4 @@
-function [pp, FData]=GenTrendFilopDyn(LentPar,TimeP,ModelP,ContP,N_mu, D_mu,a_apical, a_basal,k_mu, alpha, Tswitch)
+function [pp, FData]=GenTrendFilopDyn(LentPar,TimeP,ModelP,ContP,FixVals, alpha, Tswitch)
 
 %% ---------Defining model parameters ----------------------
 %%% TimeP = [tf, dt, t_check,MinConvergeTime, MinSaveTime, FreqSave, MaxIt];
@@ -21,6 +21,13 @@ b = ModelP(6);                %% constant in the Delta equation
 h = ModelP(7);                %% constant in the Delta equation
 k = ModelP(8);                %% constant in the Notch equation
 
+%%%=------FixVals = [N_mu, D_mu, F_mu, a_apical, a_basal];
+N_mu = FixVals(1);
+D_mu = FixVals(2);
+% F_mu = FixVals(3);
+a_apical = FixVals(4);
+a_basal =FixVals(5);
+
 %%% ContP = [Nc,MinStableValue,F_rate,r, N_sigma, D_sigma, F_sigma, N_thresh,CellsAway];
 Nc = ContP(1);                %% Number of cells in a row
 MinStableValue = ContP(2);    %% Minimum number of changing cells to establish convergence
@@ -33,14 +40,15 @@ N_thresh = ContP(8);          %% Notch threshold to distinguish SOP from epithel
 CellsAway = ContP(9);         %% Maximum # of cell diameters a filopodium can reach
 
 %%% ------- Geometry of the cells ---------
-FLent = FilopLent(LentPar,k_mu, alpha, Tswitch);     %% length distribution of filopodia
-LifeCount = 1;                                     %% keeping track of the number of filopodia life times      
+% FLent = FilopLent(LentPar,k_mu, alpha, Tswitch);    %% length distribution of filopodia
+FLent = FilopLent(LentPar, alpha,Tswitch);            %% length distribution of filopodia
+LifeCount = 1;                                        %% keeping track of the number of filopodia life times      
 
-% F  = F_sigma*randn(Nc*Nc,6) + F_mu;              %% Not useful when using filopodia dynamics model
+% F  = F_sigma*randn(Nc*Nc,6) + F_mu;                 %% Not useful when using filopodia dynamics model
 
-Ang = pi*rand(Nc*Nc, 6);                           %% Distribution filopodia angles
-Notch = N_sigma*randn(1, Nc*Nc) + N_mu;            %% Initial distribution of Notch
-Delta = D_sigma*randn(1, Nc*Nc,1) + D_mu;          %% Initial distribution of Delta
+Ang = pi*rand(Nc*Nc, 6);                              %% Distribution filopodia angles
+Notch = N_sigma*randn(1, Nc*Nc) + N_mu;               %% Initial distribution of Notch
+Delta = D_sigma*randn(1, Nc*Nc,1) + D_mu;             %% Initial distribution of Delta
 
 %%%%%%%=====================================================================
 %% ---------  Main time stepping loop to update Delta and Notch  ------------
@@ -65,7 +73,7 @@ for step = 1: MaxIt
     %%% ---- Computing effective Delta express by neighboring cells --------
     [DinJ, DinF, ~] = ParDeltaIn(Nc, r, F, Ang, CellsAway,a_apical, a_basal, Delta);
 
-    Din = DinJ + DinF;
+    Din = DinJ+ DinF;
 
     MeanDin(step, :) =[step, mean(DinJ), mean(DinF)]; 
     
@@ -86,7 +94,8 @@ for step = 1: MaxIt
     %%% NOTE: Whenever the life time of the filopodia lapses, we sample new angles and solve the filopodia model
     if rem(step, LifeTime) == 0            
         Ang = pi*rand(Nc*Nc, 6);                       %% sample new filopodia angles
-        FLent = FilopLent(LentPar,k_mu, alpha, Tswitch); %% Solve the filopodia model 
+        % FLent = FilopLent(LentPar,k_mu, alpha, Tswitch); %% Solve the filopodia model 
+        FLent = FilopLent(LentPar, alpha,Tswitch);
         LifeCount = LifeCount + 1;                     %% increase counter for the life time
     end
 
@@ -175,7 +184,7 @@ pp(1) = gcf;
 exportgraphics(pp(1),'boxplot_LSA.png','Resolution',300);
 
 %%%%%%%******************************************************************
-%%% ---------- Plotting the trend of mean Din --------------------------------
+%%% ---------- Plotting the trend of mean Din ---------------------------
 figure
 plot(MeanDin(:,1),MeanDin(:,2), 'r',MeanDin(:,1), MeanDin(:,3), 'b', 'LineWidth',1.5 )
 title('\bf D_{in} profile ')
@@ -232,6 +241,5 @@ axis tight
 box on
 pp(5) = gcf;
 exportgraphics(pp(5),'2DHexPattern.png','Resolution',300);
-
 
 end
