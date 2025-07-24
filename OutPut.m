@@ -31,7 +31,7 @@ k = 9;                  %% Exponent of Delta in the Notch equation
 ModelP = [R_N, R_D, mu, rho, a, b, h, k];
 
 %%  --Control Parameters= [Nc,MinStableValue,F_rate,r, N_sigma, D_sigma, F_sigma, N_thresh,Rreach]; -
-Nc = 20;                      %% Number of cells in a row
+Nc = 15;                      %% Number of cells in a row
 MinStableValue = 2;           %% Minimum of changing cells to establish convergence
 F_rate = 0.01;                %% (Previous idea): random rate use to update the filopodia distribution 
 r = 1;                        %% Average cell radii
@@ -46,44 +46,59 @@ ContP = [Nc,MinStableValue,F_rate,r, N_sigma, D_sigma, F_sigma, N_thresh,CellsAw
 %% ----- Fixed and most influencing parameters = [N_mu, D_mu, a_apical, a_basal,F_mu] ----------
 N_mu = 1.0;                  %% mean density of Notch
 D_mu = 1.0;                  %% mean density of  Delta
-F_mu = 3.50;                 %% (Previous idea): mean length of filopodia
+F_mu = 2.50;                 %% (Previous idea): mean length of filopodia
 a_apical = 0.1;              %% scaling factor for the apical distribution of Delta
 a_basal = 0.1;               %% scaling factor for the apical distribution of Delta
 
 FixVals = [N_mu, D_mu, F_mu, a_apical, a_basal];
 
-%% Parameters for generating filopodia length (prefixed by 'f' to distinguish them from other parameters)
-fdelta = 2.7e-3;        %% Half-size of actin monomer
-fa0 = 10;               %% G-acting concentration at the leading edge
-fKbT = 4.1e-3;          %% Thermal energy
-fN = 15;                %% Number of filament in a filopodia bundle
-fD = 5;                 %% Effective G-acting diffusion
-feta = 20;              %% Geometric conversion coefficient
-fFt = 20;               %% Membrane tension
-ftau = 2000;            %% 2046.8;     Drag coefficient of filopodia
-fK0 = 10;               %% base value for G-acting assembly rate
-fm = 0.1;               %% Exponent of retraction rate for K_on
-fw = 0.01;              %% exponent of the protrusion rate
-fk_sigma = 6e-3;        %% Variation in the membrane force Fm
-fNum_filop = Nc*Nc*6;   %% Total number of filopodia in the tissue
-fdt = 0.1;              %% Time step for simulating the filopodia
-ftf = LifeTime*60;      %% Filopodia life time in seconds
-fselectIndx = 60/fdt;   %% Index for selecting filopodia data to be used in the model simulation
-fFs = fKbT*fN/fdelta;   %% Membrane tension for which actin polymerization stalls
-fP =60;                 %% Period of myosin contraction
+%% ------- Parameter values for simulating filopodia dynamic model ----------
+Ft = 20;                  %% Membrane tension
+kf = 0.1;                 %% Filopodia stiffness
+tau = 1400;               %% Filopodia viscosity
+delta = 2.7e-3;           %% Half monomer size of actin filament
+a0 = 20;                  %% fixed Basal concentration of G-actin (produced in the cell)
+r_filop = 0.4;            %% 0.0006; Scaling factor for fm (assumed)
+N = 15;                   %% Number of actin filaments in filopodia
+D = 5;                    %% Diffusion coefficient of G-actin
+K0 = 10;                  %% Based G-actin assembly rate
+kbT = 4.1e-3;             %% Thermal Energy
+eta = 20;                 %% Viscosity coefficient
+m = 1;                    %% Retraction rate parameter
+ftf = LifeTime*60;        %% Filopodia lifetime in seconds
+fdt = 0.01;               %% time step for simulating the filopodia model
+k_sigma = 5e-1;           %% Variability in filopodia length
+Num_filop = Nc*Nc*6;      %% Total number of filopodia in the tissue
+selectIndx = 60/fdt;      %% Index for selecting filopodia data to be use for model simulation
+PauseK0_percent = 1;      %% Percentage of G-actin assembly rate during pausing
 
-LentPar = [fdelta, fa0, fKbT,fN, fD, feta, fFt, ftau, fK0, fm, fw,fk_sigma, fNum_filop, fdt, ...
-    ftf,fselectIndx, fFs, LifeTime, fP];
+LentPar = [Ft, kf, tau, delta, a0, r_filop, N,D,K0, kbT, eta, m, ftf, fdt,k_sigma, Num_filop, ...
+           selectIndx,PauseK0_percent];
 
-% k_mu = [0.0125, 4, 6];        %% Type A: Coefficients for peak myosin force. ie f0 = k_mu*Ft
-% k_mu = [0.0125, 3, 6];        %% Type B: Coefficients for peak myosin force. ie f0 = k_mu*Ft
-% k_mu = [0.0125, 4, 12];       %% Type C:  Coefficients for peak myosin force. ie f0 = k_mu*Ft
-k_mu = [0.0125, 5, 9];          %% Type D: Coefficients for peak myosin force. ie f0 = k_mu*Ft
+%% Specifying alpha and times when filopodia switch phases (Uncomment the filopodia type you want to investigate)
 
-alpha = [0.3, 0.65, 0.8; 0.25, 0.6, 0.75; 0.2, 0.75, 0.90];   %% Times when myosin switch phase
+%%%%------lpha_0, alpha_1 and t-retract for Type A -------------
+alpha = [1.0, 1.0];                 %% Type A 
+Tswitch = [0.5, 0.5]*ftf;      %% Type A 
+%%%%------lpha_0, alpha_1 and t-retract for Type B -------------
+% alpha = [1.0, 8.0];                 %% Type B  
+% Tswitch = [0.4, 0.65]*ftf;     %% Type B  
+%%%%------lpha_0, alpha_1 and t-retract for Type C -------------
+% alpha = [1.0, 10.0];                %% Type C 
+% Tswitch = [0.75, 0.75]*ftf;   %% Type C 
+%%%%------lpha_0, alpha_1 and t-retract for Type D -------------
+% alpha = [1.0, 12.0];              %% Type D 
+% Tswitch = [0.25, 0.8]*ftf;     %% Type D
 
-Tswitch = [0.25, 0.8]*ftf;      %% Times when filopodia switch phase
+[Lsub] = FilopLent(LentPar, alpha,Tswitch);
 
+
+
+%%%%%%%%%============================================================
+F  = F_sigma*randn(Nc*Nc,6) + F_mu;      %% Distribution of filopodia
+Ang = pi*rand(Nc*Nc,6);                  %% Distribution filopodia angles
+Notch = N_sigma*randn(Nc*Nc,1) + N_mu;   %% Initial distribution of Notch
+Delta = D_sigma*randn(Nc*Nc, 1) + D_mu;  %% Initial distribution of Delta
 
 %% --- Parameters ranges for sample analysis ------------
 SampSize = 10;                        %% Sample size
@@ -97,19 +112,7 @@ Nvar = linspace(0.1, 1, Np);          %% Range for initial Notch distribution
 %%%%%==========================================================
 %%  ------------ Simulate the various functions below ------------
 %%%%%==========================================================
-F  = F_sigma*randn(Nc*Nc,6) + F_mu;      %% Distribution of filopodia
-Ang = pi*rand(Nc*Nc,6);                  %% Distribution filopodia angles
-Notch = N_sigma*randn(Nc*Nc,1) + N_mu;   %% Initial distribution of Notch
-Delta = D_sigma*randn(Nc*Nc, 1) + D_mu;  %% Initial distribution of Delta
-
-%%% --- Uncomment the function you would want to run below --------
-%%% To run any of the first four functions, you would need to define the filopidia and it angle data 
-%%% as well as the Notch and Delta level. You will therefore have to uncomment the above as well .
 
 tic
-% [VertCod,CenterCod, Pcell] = TwoDGeom(Nc,r);
-% [DirVec, Fbase,FilopDisc, JunctDisc,Ftip] = Filop_vectors(Nc, r, F, Ang, CellsAway);
-[DinJ, DinF, FCount] = DeltaIn(Nc, r, F, Ang, CellsAway,a_apical, a_basal, Delta);
-% [Lsub] = FilopLent(LentPar, k_mu, alpha, Tswitch);
-% [pp, FData]=GenTrendFilopDyn(LentPar,TimeP,ModelP,ContP,N_mu, D_mu,a_apical, a_basal,k_mu, alpha, Tswitch);
+[pp, FData]=GenTrendFilopDyn(LentPar,TimeP,ModelP,ContP,FixVals, alpha, Tswitch);
 Time = toc
