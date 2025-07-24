@@ -1,138 +1,131 @@
-function [Lsub] = FilopLent(LentPar, k_mu, alpha, Tswitch)
+function [Lsub] = FilopLent(LentPar, alpha,Tswitch)
 
-delta = LentPar(1);      %% Half-size of actin monomer
-a0 = LentPar(2);         %% G-acting concentration at the leading edge
-KbT = LentPar(3);        %% Thermal energy
-N = LentPar(4);          %% Number of filament in a filopodia bundle
-D = LentPar(5);          %% Effective G-acting diffusion
-eta = LentPar(6);        %% Geometric conversion coefficient
-Ft = LentPar(7);         %% Membrane tension
-tau = LentPar(8);        %% Drag coefficient of filopodia
-K0 = LentPar(9);         %% base value for G-acting assembly rate
-m = LentPar(10);         %% Exponent of retraction rate for K_on
-w = LentPar(11);         %% exponent of the protrusion rate
-k_sigma = LentPar(12);   %% Variation in the membrane force Fm
-Num_filop = LentPar(13); %% Total number of filopodia in the tissue
-dt = LentPar(14);        %% Time step for simulating the filopodia
-tf = LentPar(15);        %% Filopodia life time in seconds
-selectIndx = LentPar(16); %% Selected index for filopodia data
-Fs = LentPar(17);        %% Membrane tension for which actin polymerization stalls
-LifeTime = LentPar(18);  %% Filopodia life time in minutes
-P = LentPar(19);         %% Period of myosin contraction cycle
+%%% LentPar = [Ft, kf, tau, delta, a0, r_filop, N,D,K0, kbT, eta, m,alpha0, alpha1, ftf, fdt];
+Ft = LentPar(1);                    %% Membrane tension         
+kf = LentPar(2);                    %% Filopodia stiffness
+tau = LentPar(3);                   %% Filopodia viscosity
+delta = LentPar(4);                 %% Half monomer size of G actin
+a0 = LentPar(5);                    %% fixed Basal concentration of G-actin (produced in the cell)
+r_filop = LentPar(6);               %% Scaling factor for myosin force Fm (assumed)
+N = LentPar(7);                     %% Number of actin filaments in filopodia
+D = LentPar(8);                     %% Diffusion coefficient of G-actin
+K0 = LentPar(9);                    %% Base G-actin assembly rate
+KbT = LentPar(10);                  %% Thermal Energy
+eta = LentPar(11);                  %% Viscosity coefficient
+m = LentPar(12);                    %% Retraction rate parameter
+ftf = LentPar(13);                  %% Filopodia lifetime in seconds
+fdt = LentPar(14);                  %% time step for simulating the filopodia model
+k_sigma = LentPar(15);              %% Variability in filopodia length
+Num_filop = LentPar(16);            %% Total number of filopodia in the tissue
+selectIndx = LentPar(17);           %% Index for selecting filopodia data to be use for model simulation
+PauseK0_percent = LentPar(18);      %% Percentage of G-actin assembly rate during pausing
 
-t = 0:dt:tf;             %% Simulation time
-
-N0 = Ft*delta/KbT;       %% Number of filament to support filopodium
-c0 = (1 - (Ft/Fs))^w;
-kappa = k_sigma*randn(Num_filop,1);  %% variation 
-
-Vp = @(L, Kon)( (Kon*delta*a0*c0)*(1- (Kon*L*N)./(Kon*L*N + D*eta*exp(N0/N)) ) );
+kappa = k_sigma*randn(Num_filop,1); %% variation in the filopodia length
 
 
+alpha0 = alpha(1);                  %% Base myosin pulling force
+alpha1 = alpha(2);                  %% Coefficient of local myosin force due to filopodia length
+
+t = 0:fdt:ftf;                      %% Simulation time of filopodia
+N0 = (Ft*delta)/KbT;                %% Minimum number of filopodia bundle to support filopodia
+L0 = 0;                             %% Initial length of filopodia
+x0 = 0;                             %% Initial retrograde displacement
+
+%%%%%% ----- Defining the protrusion rate Vp and the myosin pulling force Fm   ----------------
+Vp = @(L, Kon, a0bar)( (Kon*delta*a0bar)*(1- (Kon*L*N)./(Kon*L*N + D*eta*exp(N0/N) ) )*exp(-(N0/N)) );
+Fm = @(L)(alpha0 + alpha1*L);
+
+%%%%% ---------------Initialing vecors to store data ---------------------------
 Lmat = zeros(Num_filop, length(t));
-Lmat(:,1) = 0;
-FmData = zeros(length(t), 1);
-MyosinData = zeros(length(t), 1);
+xMat = zeros(1, length(t));
+VrMat = zeros(1, length(t));
+KonMat = zeros(1, length(t));
+VpMat = zeros(1, length(t));
 
-for n = 1: length(t)-1
-    if t(n) <= Tswitch(1)   % Myosin force and retrograte flow rate during elongation phase
-        f0 = Ft*k_mu(1);
-        Fm = OneMyosin(t(n), alpha(1, :), f0, P);
-        Vr = (Ft + Fm)/tau + kappa;
-        FmData(n) = Fm;
+%%%%%% ------------ Solving the filopodia model ------------------------
+for n = 2: length(t)
+    Kon = KonBar(t(n), Tswitch, K0, m,PauseK0_percent);     %% G-actin assemble rate
+    a0bar = a0 + r_filop*Fm(L0);                             % a0 + r_filop*Fm(L0)   
+    Vr = (Fm(L0) + Ft - kf*x0)/tau;
+    xnew = x0 + fdt*Vr; 
 
-    elseif (t(n) > Tswitch(1)) && (t(n) <= Tswitch(2))   % Myosin force and retrograte flow rate during stationary phase
-        f0 = Ft*k_mu(2);
-        Fm = OneMyosin(t(n), alpha(2, :), f0, P);
-        Vr = (Ft + Fm)/tau + kappa;
-        FmData(n) = Fm;
-
-    else
-        f0 = Ft*k_mu(3);       % Myosin force and retrograte flow rate during retraction phase
-        Fm = OneMyosin(t(n), alpha(3, :), f0, P);
-        Vr = (Ft + Fm)/tau + kappa;
-        FmData(n) = Fm;
-    end
+    Lnew = L0 + fdt*( Vp(L0, Kon, a0bar) - Vr);
 
     
-    [Kon] = KonBar(t(n),Tswitch,K0, m);
+    Lmat(:,n) = Lnew + kappa;
 
-    Lnew =  Lmat(:,n) + dt*( Vp(Lmat(:,n), Kon) - Vr );
-    Lnew(Lnew<0) = 0;            % setting the negative length to zero
-    Lmat(:,n+1) =  Lnew;
+    xMat(n) = xnew;
+    VrMat(n) = Vr;
+    KonMat(n) = Kon;
+    VpMat(n) = Vp(L0, Kon, a0bar);
 
-    MyosinData(n) = OneMyosin(t(n), alpha(1, :), k_mu(1)*Ft, P);
+    L0 = Lnew;
+    x0 = xnew;
 end
 
-Lmat = Lmat/5;                    % scaling the length to into cell radii
-Lsub = Lmat(:,1:selectIndx:end);  % Extacting filopodia data for the main simulation 
+Scale_Lmat = Lmat/5;                     % scaling the length to into cell radii
+Lsub = Scale_Lmat(:,1:selectIndx:end);   % Extacting filopodia data for the main simulation 
 
-% figure
-% plot(Lmat)
+% % % %%%%% --------------- Visualizing the filopodia dynamics ----------------
+% % % figure
+% % % Scale_err = std(Scale_Lmat);
+% % % Scale_md = mean(Scale_Lmat);
+% % % errorbar( t, Scale_md,  Scale_err, 'm')
+% % % hold on
+% % % plot(t, Scale_md, 'b', 'LineWidth',2);
+% % % ylim([0,2.5])
+% % % title('\bf Filopodia dynamics; Lifetime')
+% % % xlabel('\bf Time [sec]'); 
+% % % ylabel('\bf Filopodia length in cell radii')
+% % % pb = gcf;
+% % % exportgraphics(pb,'Scale_Filop_Dyn.png','Resolution',300);
+% % % 
+% % % figure
+% % % err = std(Lmat);
+% % % md = mean(Lmat);
+% % % errorbar( t, md,  err, 'c')
+% % % hold on
+% % % plot(t, md, 'r', 'LineWidth',2);
+% % % ylim([0,12])
+% % % title('\bf Actual filopodia length dynamics')
+% % % xlabel('\bf Time [sec]'); 
+% % % ylabel('\bf Filopodia length in \mu m')
+% % % pb = gcf;
+% % % exportgraphics(pb,'Actual Filop_Dyn.png','Resolution',300);
+% % % 
+% % % figure
+% % % plot(t(2:end),KonMat(2:end), 'b--','LineWidth',2)
+% % % xlabel('\bf Time', 'FontSize',14);
+% % % ylabel('\bf G-actin assembly rate K_{on}', 'FontSize',14)
+% % % 
+% % % figure
+% % % plot(t(2:end),-xMat(2:end), 'b--','LineWidth',2)
+% % % xlabel('\bf Time', 'FontSize',14);
+% % % ylabel('\bf Retrograde displacement x(t)', 'FontSize',14)
+% % % 
+% % % figure
+% % % plot(t(2:end), VpMat(2:end), 'b:',t(2:end), VrMat(2:end), 'm--','LineWidth',2)
+% % % xlabel('\bf Time', 'FontSize',14);
+% % % ylabel('\bf Protrusion and retraction rates', 'FontSize',14)
+% % % legend('Protrusion rate V_p', "Retraction rate V_r")
 
-figure
-err = std(Lmat);
-md = mean(Lmat);
-errorbar( t, md,  err, 'c')
-hold on
-plot(t, md, 'r', 'LineWidth',2);
-title(['\bf Filopodia dynamics; Lifetime = ', num2str(LifeTime),' minutes'])
-xlabel('\bf Time [sec]'); 
-ylabel('\bf Filopodia length in cell radii')
-pb = gcf;
-exportgraphics(pb,'Filop_Dyn.png','Resolution',300);
+%%%%%%%%%=========================================================================
+    function Kon = KonBar(t, Tswitch, K0, m, PauseK0_percent)
 
-figure
-plot(t, FmData, 'r', 'LineWidth',1.5);
-title('\bf Myosin force ')
-xlabel('\bf Time [sec]'); ylabel('\bf Fm')
-pf = gcf;
-exportgraphics(pf,'Myosin_Force.png','Resolution',300);
+        t0 = Tswitch(1);                 %% Time when filopodia start pausing
+        t1 = Tswitch(2);                 %% Time when filopodia start retracting
 
-figure
-plot(t, MyosinData, 'r', 'LineWidth',1.5);
-title('\bf Myosin Profile ')
-ylim([0, 0.5])
-xlabel('\bf Time [sec]');
-ylabel('\bf Myosin force F_m')
-box on; 
-pm = gcf;
-exportgraphics(pm,'Myosin.png','Resolution',300);
-
-
-
-%%%%%%------- User define functions for the simulation ---------
-function [Kon] = KonBar(t,Tswitch,K0, m)
-        t0 = Tswitch(2);
-        if t <= t0
+        if t <= t0                       %% G-actin assembly during protrusion
             Kon = K0;
-        else
-            Kon = K0*exp(-m*(t-t0));
-        end
-end
 
-%%%% This function generate ONE mysion contractile profile
-    function [Fm] = OneMyosin(t, myo_alpha, f0, P)
-        tloc = rem(t, P);    % Time modulo P (periodic behavior)
-        a1 = myo_alpha(1);         % alpha_1
-        a2 = myo_alpha(2);         % alpha_2
-        a3 = myo_alpha(3);         % alpha_3
+        elseif (t >t0 && t< t1)          %% G-actin assembly during pausing
+            Kon = PauseK0_percent*K0;
 
-        % Creating the piecewise function for the myosin profile
-        if (tloc <= a1*P)
-            % Increasing phase
-            Fm = f0 / (a1 * P) * tloc;
-        elseif (tloc > a1*P) && (tloc <= a2*P)
-            % Plateau phase
-            Fm = f0;
-        elseif (tloc > a2*P) && (tloc <= a3*P)
-            % Decreasing phase
-            Fm = -f0 / ((a3 - a2) * P) * (tloc - a2 * P) + f0;
-        elseif (tloc > a3*P) && (tloc <= P)
-            % Zero phase
-            Fm = 0;
+        else                             %% G-actin assembly during retraction
+            Kon = K0*exp(-m*(t - t0));
         end
+
     end
 
-    
+
 end
