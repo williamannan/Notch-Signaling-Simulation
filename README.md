@@ -7,14 +7,15 @@ The outline for the code is as follows:
 
  "Filop_vectors.m" - This function file computes the directional vectors along the filopodia in the tissue, the coordinates at the base and tips of the filopodia, and the apical and filopodia neighbors for each cell in the tissue
 
- "DeltaIn.m" - This function computes the effective Delta expressed by the neighboring cells. It performs the computation in a serial manner
- "ParDeltaIN.m"- This function computes the effective Delta expressed by the neighboring cells. It performs the computation in a parallel manner
+"ParDeltaIN.m"- This function computes the effective Delta expressed by the neighboring cells. It performs the computation in a parallel manner
 
- "FilopLent.m" - This function solves the filopodia length dynamic model
+"FilopAngles.m" - This function computes the angle distribution of the filopodia when oriented towards a fixed point in the tissue. Here, we selected five fixed locations, namely, northeast (NE), northwest (NW), southwest (SW), southeast (SE) and center (C). To orient all filopodia to a fixed point, you need to pass "Ang" as an input parameter to the "GenTrendFilopDyn.m" function. You also have to comment the "Ang" defined in this function. In the output file, you need to uncomment this line "[Ang] = FilopAngles(Nc, r, 'C')". 
 
- "GenTrendFilopDyn.m"- This is the main function file that solves the Notch-Delta signaling model
+"FilopLent.m" - This function solves the filopodia length dynamic model
 
- "OutPut.m" -  This is where all the model parameters are specified and also the various function files are called to run.
+"GenTrendFilopDyn.m"- This is the main function file that solves the Notch-Delta signaling model
+
+"OutPut.m" -  This is where all the model parameters are specified and also the various function files are called to run.
 
  
 
